@@ -17,6 +17,6 @@
     "test:frontend": "pnpm --filter toll-fee-frontend exec echo \"No frontend tests configured\""
   },
   "dependencies": {
-    "react-bulma-components": "^4.1.0"
+    "@allxsmith/bestax-bulma": "^2.6.2"
   }
 }
