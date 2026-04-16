@@ -15,5 +15,8 @@
     "test": "pnpm -r run test",
     "test:backend": "pnpm --filter toll-fee-backend run test",
     "test:frontend": "pnpm --filter toll-fee-frontend exec echo \"No frontend tests configured\""
+  },
+  "dependencies": {
+    "react-bulma-components": "^4.1.0"
   }
 }

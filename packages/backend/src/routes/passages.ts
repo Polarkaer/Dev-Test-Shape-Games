@@ -7,7 +7,8 @@ import {
 } from "../data/passagesStore";
 import {
   calculateCharges,
-  getBaseFee
+  getBaseFee,
+  calculateDailyToll
 } from "../services/tollCalculator";
 import {
   PassageResponse,
@@ -77,4 +78,14 @@ passagesRouter.delete("/:id", (req, res) => {
   }
 
   res.status(204).send();
+});
+
+passagesRouter.post("/daily-toll", (req, res) => {
+  try {
+    const request = req.body as DailyTollRequest;
+    const response = calculateDailyToll(request);
+    res.json(response);
+  } catch (error) {
+    res.status(400).json({ error: (error as Error).message });
+  }
 });

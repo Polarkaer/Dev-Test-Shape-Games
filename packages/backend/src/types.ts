@@ -42,8 +42,25 @@ export interface PassageCharge {
   dailyTotal: number;
 }
 
-export interface PassageResponse extends TollPassage {
-  baseFee: number;
-  chargedFee: number;
-  dailyTotal: number;
+export interface PassageEvent {
+  timestamp: string;
+}
+
+export interface ChargedPassage {
+  windowStart: string;
+  windowEnd: string;
+  appliedFeeDkk: number;
+  triggeringTimestamp: string;
+}
+
+export interface DailyTollRequest {
+  vehicleType: string;
+  passages: PassageEvent[];
+}
+
+export interface DailyTollResponse {
+  date: string;
+  totalFeeDkk: number;
+  chargedPassages?: ChargedPassage[];
+  notes?: string[];
 }

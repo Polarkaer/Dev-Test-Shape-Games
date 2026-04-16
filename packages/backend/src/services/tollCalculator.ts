@@ -3,6 +3,10 @@ import {
   TollPassage,
   TOLL_FREE_VEHICLE_TYPES,
   VehicleType,
+  DailyTollRequest,
+  DailyTollResponse,
+  ChargedPassage,
+  PassageEvent,
 } from "../types";
 import {
   getLocalDateKey,
@@ -163,4 +167,101 @@ export function calculateCharges(
   }
 
   return results;
+}
+
+export function calculateDailyToll(request: DailyTollRequest): DailyTollResponse {
+  const { vehicleType, passages } = request;
+
+  if (!vehicleType || typeof vehicleType !== 'string') {
+    throw new Error('Invalid vehicleType');
+  }
+
+  if (!Array.isArray(passages)) {
+    throw new Error('Invalid passages');
+  }
+
+  const parsedPassages: { timestamp: Date; original: string }[] = [];
+  let dateKey: string | null = null;
+
+  for (const p of passages) {
+    if (!p.timestamp || typeof p.timestamp !== 'string') {
+      throw new Error('Invalid timestamp in passages');
+    }
+    const date = new Date(p.timestamp);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(`Invalid timestamp format: ${p.timestamp}`);
+    }
+    const key = getLocalDateKey(date);
+    if (dateKey && key !== dateKey) {
+      throw new Error('Passages must be from the same date');
+    }
+    dateKey = key;
+    parsedPassages.push({ timestamp: date, original: p.timestamp });
+  }
+
+  if (!dateKey) {
+    // No passages, return 0
+    return { date: '', totalFeeDkk: 0 };
+  }
+
+  parsedPassages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  const chargedPassages: ChargedPassage[] = [];
+  let dailyRunningTotal = 0;
+  let activeWindow: { startTime: Date; entries: { timestamp: Date; original: string; fee: number }[] } | null = null;
+
+  const finalizeWindow = () => {
+    if (!activeWindow || activeWindow.entries.length === 0) {
+      activeWindow = null;
+      return;
+    }
+
+    const maxEntry = activeWindow.entries.reduce((max, current) => current.fee > max.fee ? current : max);
+    let appliedFee = maxEntry.fee;
+
+    if (dailyRunningTotal >= DAILY_CAP) {
+      appliedFee = 0;
+    } else if (dailyRunningTotal + appliedFee > DAILY_CAP) {
+      appliedFee = DAILY_CAP - dailyRunningTotal;
+    }
+
+    dailyRunningTotal += appliedFee;
+
+    chargedPassages.push({
+      windowStart: activeWindow.startTime.toISOString(),
+      windowEnd: new Date(activeWindow.startTime.getTime() + HOURLY_WINDOW_MS).toISOString(),
+      appliedFeeDkk: appliedFee,
+      triggeringTimestamp: maxEntry.original,
+    });
+
+    activeWindow = null;
+  };
+
+  for (const p of parsedPassages) {
+    const fee = getBaseFee(p.timestamp, vehicleType as VehicleType);
+    if (fee === 0) {
+      continue; // toll-free
+    }
+
+    if (!activeWindow) {
+      activeWindow = { startTime: p.timestamp, entries: [{ timestamp: p.timestamp, original: p.original, fee }] };
+      continue;
+    }
+
+    if (p.timestamp.getTime() - activeWindow.startTime.getTime() < HOURLY_WINDOW_MS) {
+      activeWindow.entries.push({ timestamp: p.timestamp, original: p.original, fee });
+      continue;
+    }
+
+    finalizeWindow();
+    activeWindow = { startTime: p.timestamp, entries: [{ timestamp: p.timestamp, original: p.original, fee }] };
+  }
+
+  finalizeWindow();
+
+  return {
+    date: dateKey,
+    totalFeeDkk: dailyRunningTotal,
+    chargedPassages,
+  };
 }

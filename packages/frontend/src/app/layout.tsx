@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "bulma/css/bulma.min.css";
 
 export const metadata: Metadata = {
   title: "Toll Passage Manager",
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="has-background-black has-text-white">{children}</body>
     </html>
   );
 }
