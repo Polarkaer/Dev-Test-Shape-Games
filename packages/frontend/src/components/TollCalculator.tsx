@@ -36,6 +36,15 @@ interface DailyTollResponse {
   notes?: string[];
 }
 
+/*
+  Assumptions and validation behavior:
+  - Timezone evaluation is based on the timestamp's own timezone.
+  - The local calendar day boundary is the date in the provided timezone.
+  - Input may be unsorted; passages are sorted by instant before submission.
+  - Malformed timestamps are rejected with a clear error.
+  - Passages spanning multiple local dates are rejected.
+*/
+
 const vehicleTypes = [
   "car",
   "motorbike",
@@ -59,10 +68,75 @@ const iconVehicle = (type: string) => {
   }
 };
 
+const parseIsoTimestamp = (timestamp: string) => {
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const extractLocalDate = (timestamp: string) => {
+  return timestamp.slice(0, 10);
+};
+
+const validatePassages = (passages: string[]) => {
+  type InvalidPassage = {
+    timestamp: string;
+    index: number;
+    error: string;
+  };
+  type ValidPassage = {
+    timestamp: string;
+    index: number;
+    instant: number;
+    localDate: string;
+  };
+
+  if (passages.length === 0) {
+    return { sortedPassages: passages, error: "Please add at least one valid passage." };
+  }
+
+  const entries = passages.map<ValidPassage | InvalidPassage>((timestamp, index) => {
+    const date = parseIsoTimestamp(timestamp);
+    if (!date) {
+      return { timestamp, index, error: `Malformed timestamp at passage ${index + 1}: ${timestamp}` };
+    }
+
+    return {
+      timestamp,
+      index,
+      instant: date.getTime(),
+      localDate: extractLocalDate(timestamp),
+    };
+  });
+
+  const invalidEntry = entries.find((entry): entry is InvalidPassage =>
+    "error" in entry,
+  );
+  if (invalidEntry) {
+    return { sortedPassages: [], error: invalidEntry.error };
+  }
+
+  const validEntries = entries.filter((entry): entry is ValidPassage => !("error" in entry));
+
+  const localDates = new Set(validEntries.map((entry) => entry.localDate));
+  if (localDates.size > 1) {
+    return {
+      sortedPassages: [],
+      error:
+        "Passages span multiple local dates. Please submit passages for a single local calendar day.",
+    };
+  }
+
+  const sortedPassages = validEntries
+    .sort((a, b) => a.instant - b.instant)
+    .map((entry) => entry.timestamp);
+
+  return { sortedPassages, error: undefined };
+};
+
 export default function TollCalculator() {
   const [vehicleType, setVehicleType] = useState("");
   const [passageList, setPassageList] = useState<string[]>([]);
-  const [date, setDate] = useState("2013-02-07");
+  const [date, setDate] = useState("2025-02-07");
   const [time, setTime] = useState("06:15");
   const [timezone, setTimezone] = useState("+01:00");
   const [result, setResult] = useState<DailyTollResponse | null>(null);
@@ -74,7 +148,15 @@ export default function TollCalculator() {
       setError("Date and time are required");
       return;
     }
+
     const timestamp = `${date}T${time}:00${timezone}`;
+    if (!parseIsoTimestamp(timestamp)) {
+      setError(
+        "Cannot add passage: invalid timestamp. Please select a valid date, time, and timezone.",
+      );
+      return;
+    }
+
     setPassageList([...passageList, timestamp]);
     setError("");
   };
@@ -98,6 +180,14 @@ export default function TollCalculator() {
       return;
     }
 
+    const validation = validatePassages(passageList);
+    if (validation.error) {
+      setError(validation.error);
+      return;
+    }
+
+    const sortedPassages = validation.sortedPassages;
+
     setLoading(true);
 
     try {
@@ -108,7 +198,7 @@ export default function TollCalculator() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             vehicleType,
-            passages: passageList.map((ts) => ({ timestamp: ts })),
+            passages: sortedPassages.map((ts) => ({ timestamp: ts })),
           }),
         },
       );
@@ -126,7 +216,7 @@ export default function TollCalculator() {
     } finally {
       console.log("Calculation completed");
       console.log("Vehicle Type:", vehicleType);
-      console.log("Passages:", passageList);
+      console.log("Passages:", sortedPassages);
       setLoading(false);
     }
   };
@@ -142,6 +232,10 @@ export default function TollCalculator() {
       </Content>
       <Box id="input-box" className="calculator-box">
         <Title size="5">Input</Title>
+        <p className="help">
+          Assumes timestamps are evaluated in the selected timezone. Passages must
+          belong to a single local calendar day and are sorted before submission.
+        </p>
         <form>
           <Field label="Vehicle Type">
             <Control>
