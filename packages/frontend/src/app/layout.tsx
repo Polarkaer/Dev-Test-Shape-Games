@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "bulma/css/bulma.min.css";
+import "./globals.scss";
 
 export const metadata: Metadata = {
   title: "Toll Passage Manager",
