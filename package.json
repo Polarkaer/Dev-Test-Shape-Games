@@ -17,6 +17,12 @@
     "test:frontend": "pnpm --filter toll-fee-frontend exec echo \"No frontend tests configured\""
   },
   "dependencies": {
-    "@allxsmith/bestax-bulma": "^2.6.2"
+    "@allxsmith/bestax-bulma": "^2.6.2",
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-brands-svg-icons": "^7.2.0",
+    "@fortawesome/free-regular-svg-icons": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.0",
+    "bulma": "^1.0.4"
   }
 }
